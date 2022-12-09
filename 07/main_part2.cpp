@@ -3,6 +3,10 @@
 #include <map>
 #include <vector>
 #include <list>
+#include <algorithm>
+
+constexpr int totalDiskSpace = 70000000;
+constexpr int updateNeededSpace = 30000000;
 
 struct folder
 {
@@ -28,15 +32,15 @@ void calculateTotalSizeOfSubFolder(std::map<std::string, folder> *folders)
     }
 }
 
-void filterSmallFolders(folder rootfolder, int magicSize, std::vector<int> *smallfolders)
+void filterBiggerFolders(folder rootfolder, int magicSize, std::vector<int> *bigfolders)
 {
     for (auto folder : rootfolder.folders)
     {
-        if (folder.second.totalSize <= magicSize)
-            smallfolders->push_back(folder.second.totalSize);
+        if (folder.second.totalSize >= magicSize)
+            bigfolders->push_back(folder.second.totalSize);
 
         if (folder.second.folders.size() >= 0)
-            filterSmallFolders(folder.second, magicSize, smallfolders);
+            filterBiggerFolders(folder.second, magicSize, bigfolders);
     }
 }
 
@@ -46,6 +50,8 @@ int main(int argc, char **argv)
     if (argc != 2)
         return -1;
     folder rootFolder;
+    folder *currentfolder = &rootFolder;
+
     rootFolder.name = "/";
     rootFolder.outerFolder = nullptr;
     rootFolder.sizeFiles = 0;
@@ -53,7 +59,6 @@ int main(int argc, char **argv)
     rootFolder.totalSize = 0;
 
     bool getLSinput = false;
-    folder *currentfolder = &rootFolder;
 
     std::ifstream input;
     input.open(argv[1]);
@@ -118,10 +123,10 @@ int main(int argc, char **argv)
         }
         else
         {
-            int size;
+            uint64_t size;
             std::string name;
             char buf[80];
-            sscanf(line.c_str(), "%d %s", &size, &buf[0]);
+            sscanf(line.c_str(), "%lu %s", &size, &buf[0]);
             name = buf;
 
             if (getLSinput && currentfolder->files.find(name) == currentfolder->files.end())
@@ -136,13 +141,15 @@ int main(int argc, char **argv)
     calculateTotalSizeOfSubFolder(&rootFolder.folders);
     rootFolder.totalSize = rootFolder.sizeFiles + rootFolder.sizeFolders;
 
-    int size = 0;
-    std::vector<int> sizeSmallerFolders;
+    int freeDiskSpace = totalDiskSpace - rootFolder.totalSize;
+    int minimumToDelete = 0;
+    if (freeDiskSpace < updateNeededSpace)
+        minimumToDelete = updateNeededSpace - freeDiskSpace;
 
-    filterSmallFolders(rootFolder, 100000, &sizeSmallerFolders);
+    std::vector<int> sizeBiggerFolders;
 
-    for (size_t i = 0; i < sizeSmallerFolders.size(); i++)
-        size += sizeSmallerFolders.at(i);
+    filterBiggerFolders(rootFolder, minimumToDelete, &sizeBiggerFolders);
+    int size = *std::min_element(sizeBiggerFolders.begin(), sizeBiggerFolders.end());
 
     std::cout << "the result is: " << size << std::endl;
 
